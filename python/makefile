@@ -11,7 +11,7 @@ build:
 	make deps
 	if [ -d '../python-dist' ]; then rm -rf ../python-dist/; fi
 	mkdir ../python-dist
-	cp -r mock ./dist/
+	cp -r mock/* ./dist/
 	mv dist ../python-dist/
 	cp -r ../conf/ ../python-dist/
 	echo '[Build] python modules are all in python-dist.'
