@@ -6,6 +6,9 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.StreamingQuery
 import org.apache.spark.sql.types._
+import java.security.MessageDigest
+import java.math.BigInteger
+import java.sql.{Date, Timestamp}
 
 @Singleton
 private[order] final class DataUtils @Inject()
@@ -14,11 +17,11 @@ private[order] final class DataUtils @Inject()
   private val mySQLWriter: MySQLWriter,
   @Named("KAFKA BROKERS") private val BROKERS: String,
   @Named("KAFKA TOPICS") private val TOPICS: String
-) {
+) extends Serializable {
 
   import spark.implicits._
 
-  private val schema =
+  private lazy val schema =
     new StructType()
       .add(new StructField("itemid", IntegerType))
       .add(new StructField("count", IntegerType))
@@ -27,6 +30,17 @@ private[order] final class DataUtils @Inject()
       .add(new StructField("orderid", LongType))
       .add(new StructField("shopid", LongType))
       .add(new StructField("region", StringType))
+
+  private def formRowKey(region: String, itemid: Int, shopid: Long, timestamp: Timestamp): String = {
+    new BigInteger(
+      1,
+      MessageDigest.getInstance("MD5").digest(
+        region concat itemid.toString concat shopid.toString concat (timestamp.getTime / 1000).toString getBytes
+      )
+    ).toString(16)
+  }
+
+  @transient private val formRowKeyUDF = udf(formRowKey _)
 
   def getTestDataSource: DataFrame = {
     this.getProductionDataSource
@@ -57,8 +71,7 @@ private[order] final class DataUtils @Inject()
   }
 
   def getProductionTransformation(df: DataFrame): DataFrame = {
-    df.select("orderid", "itemid", "shopid", "region", "price", "count", "timestamp")
-      .withColumn("processing_time", current_timestamp)
+    df.withColumn("processing_time", current_timestamp)
       .groupBy(
         window($"timestamp", "1 minutes"),
         $"region", $"shopid", $"itemid", $"timestamp"
@@ -70,6 +83,8 @@ private[order] final class DataUtils @Inject()
         min($"processing_time").alias("min_processing_time"),
         max($"processing_time").alias("max_processing_time")
       )
+      .withColumn("rowkey", formRowKeyUDF($"region", $"itemid", $"shopid", $"timestamp"))
+      .drop("window")
   }
 
   def getTestDataSink(df: DataFrame): StreamingQuery = {

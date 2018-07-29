@@ -1,6 +1,6 @@
 package com.mychaint.order
 
-import java.sql.{Connection, DriverManager, Statement}
+import java.sql.{Connection, DriverManager, Statement, Timestamp}
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
@@ -17,7 +17,7 @@ private[order] final class MySQLWriter @Inject()
   @Named("MYSQL USER") private val MYSQL_USER:String,
   @Named("MYSQL PASSWORD") private val MYSQL_PASSWORD:String,
   @Named("MYSQL TABLE") private val MYSQL_TABLE:String
-) extends ForeachWriter[Row] {
+) extends ForeachWriter[Row] with Serializable {
 
   @transient var connection: Option[Connection] = None
 
@@ -55,21 +55,19 @@ private[order] final class MySQLWriter @Inject()
       val values =
         0 until value.length map { i =>
           val v = value.get(i)
-          try {
-            this.calendar.setTime(
-              dateFormatter.parse(v.toString)
-            )
-            this.calendar.getTime.getTime / 1000
-          } catch {
-            case _: Throwable =>
-              v
+          v match {
+            case a: Int => a
+            case b: Long => b
+            case d: Double => d
+            case c: Timestamp => c.asInstanceOf[Timestamp].getTime / 1000
+            case _ => s"'$v'"
           }
         } mkString(",")
       val query =
         s"""
           |REPLACE INTO $MYSQL_TABLE ($columns) values ($values)
         """.stripMargin
-//      statement.execute(query)
+      statement.execute(query)
     } catch {
       case e: Throwable =>
         e.printStackTrace
