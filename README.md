@@ -26,9 +26,9 @@ If choose APPEND mode to output parquet files, watermark is needed, which cause 
 There are many SQL engines on top of HBase, such as Hive, Phoenix, Drill to support SQL queries. 
 
 ##### Data Visualization
-Based on Hive, Phoenix, Drill like SQL engines or pure HBase client, it is possible to build google data visualization with many analytics tools, such Apache Superset.
+Based on Hive, Phoenix, Drill like SQL engines or pure HBase client, it is possible to build good data visualization with many analytics tools, such Apache Superset.
 
-### Code Style
+### Code Style & QA
 In spark streaming project, data sources, data output mode are different in order to conduct testing and deployment separately. According to my best practices to develope a spark project, I used dependency injection over my code, so that core streaming processing code would be fixed, and method of capturing source data, transforming data and sinking data are changing according to different runtime environment.
 
 In this example code, I use `Google-Guice` to handle method injection as runtime.
@@ -45,7 +45,7 @@ def execute(): Unit = {
 
 Methods `getDataSource`, `proceedTransformation` and `proceedSink` are injected by `Google-Guice`. Injection rule is defined in package `com.mychaint.order.inject`. 
 
-When I want to test it, just execute main function with following parameter `test`
+When I want to test the main logic, just execute main function with following parameter `test`
 ```bash
 spark-submit --class com.mychaint.order.AppContext my.jar test <dev email>
 ```
@@ -56,3 +56,6 @@ spark-submit --class com.mychaint.order.AppContext my.jar prod <dev email>
 ```
 
 All injected methods are defined in `DataUtils`. They are able to be easily changed in the same place.
+
+Besides core logic test, just make sure unit tests of IO sides passed, we could make a relatively high quality of our project before production deployment.
+
