@@ -3,22 +3,43 @@ package com.mychaint.order
 import com.google.inject.{Inject, Singleton}
 import com.google.inject.name.Named
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.functions.{current_timestamp, sum, window, round, count, min, max}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.streaming.StreamingQuery
+import org.apache.spark.sql.types._
 
 @Singleton
 private[order] final class DataUtils @Inject()
 (
   private val spark: SparkSession,
+  private val mySQLWriter: MySQLWriter,
   @Named("KAFKA BROKERS") private val BROKERS: String,
   @Named("KAFKA TOPICS") private val TOPICS: String
 ) {
 
+  import spark.implicits._
+
+  private val schema =
+    new StructType()
+      .add(new StructField("itemid", IntegerType))
+      .add(new StructField("count", IntegerType))
+      .add(new StructField("timestamp", TimestampType))
+      .add(new StructField("price", FloatType))
+      .add(new StructField("orderid", LongType))
+      .add(new StructField("shopid", LongType))
+      .add(new StructField("region", StringType))
+
   def getTestDataSource: DataFrame = {
-    spark.readStream
-      .format("kafka")
-      .option("kafka.bootstrap.servers", "localhost:9092")
-      .option("subscribe", "streaming-data")
+//    this.getProductionDataSource
+    spark
+      .readStream
+      .format("socket")
+      .option("host", "localhost")
+      .option("port", 9999)
       .load()
+      .selectExpr("CAST(value AS STRING)")
+      .select(from_json($"value", schema).alias("value"))
+      .select("value.*")
+
   }
 
   def getProductionDataSource: DataFrame = {
@@ -27,6 +48,9 @@ private[order] final class DataUtils @Inject()
       .option("kafka.bootstrap.servers", this.BROKERS)
       .option("subscribe", this.TOPICS)
       .load()
+      .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)")
+      .select(from_json($"value", schema).alias("value"))
+      .select("value.*")
   }
 
   def getTestDataTransformation(df: DataFrame): DataFrame = {
@@ -34,13 +58,11 @@ private[order] final class DataUtils @Inject()
   }
 
   def getProductionTransformation(df: DataFrame): DataFrame = {
-    import spark.implicits._
-
     df.select("orderid", "itemid", "shopid", "region", "price", "count", "timestamp")
+      .withWatermark("timestamp", "5 seconds")
       .withColumn("processing_time", current_timestamp)
-      .withColumn("timestamp", round($"timestamp" / 60, 0) * 60)
       .groupBy(
-        window($"timestamp", "2 minutes", "1 minutes"),
+        window($"timestamp", "1 minutes", "1 minutes"),
         $"region", $"shopid", $"itemid", $"timestamp"
       )
       .agg(
@@ -52,14 +74,17 @@ private[order] final class DataUtils @Inject()
       )
   }
 
-  def getTestDataSink(df: DataFrame): Unit = {
+  def getTestDataSink(df: DataFrame): StreamingQuery =
     df.writeStream
       .format("console")
+      .outputMode("append")
       .start()
-  }
 
-  def getProductionDataSink(df: DataFrame): DataFrame = {
+
+  def getProductionDataSink(df: DataFrame): StreamingQuery = {
     df.writeStream
-      .foreach("kafka")
+      .foreach(mySQLWriter)
+      .outputMode("append")
+      .start()
   }
 }

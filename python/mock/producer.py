@@ -15,11 +15,11 @@ def produce_mock_orders_json(brokers, topic):
     while True:
         item = itemid[randint(0, len(itemid)-1)]
         record = {
-            "itemid": str(item[0]),
-            "price": str(item[1]),
-            "shopid": str(item[2]),
+            "itemid": item[0],
+            "price": item[1],
+            "shopid": item[2],
             "count": randint(1, 100),
-            "timestamp": "%s" % datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "timestamp": int(time.mktime(datetime.datetime.now().timetuple())),
             "region": region[randint(0,len(region)-1)],
             "orderid": orderid
         }
