@@ -1,6 +1,8 @@
 package com.mychaint.order
 
 import java.sql.{Connection, DriverManager, Statement}
+import java.text.SimpleDateFormat
+import java.util.Calendar
 
 import com.google.inject.name.Named
 import com.google.inject.{Inject, Singleton}
@@ -17,37 +19,52 @@ private[order] final class MySQLWriter @Inject()
   @Named("MYSQL TABLE") private val MYSQL_TABLE:String
 ) extends ForeachWriter[Row] {
 
-  var connection: Connection = null
+  @transient var connection: Option[Connection] = None
 
-  override def open(partitionId: Long, version: Long) = {
+  lazy val dateFormatter = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
+
+  lazy val calendar = Calendar.getInstance()
+
+  private def getConnection(): Unit = {
     this.connection = {
-      val JDBC_DRIVER = "com.mysql.jdbc.Driver"
-      val DB_URL = s"jdbc:mysql://$MYSQL_HOST:$MYSQL_PORT/$MYSQL_DB"
       try {
-        DriverManager.getConnection(DB_URL)
+        Some(DriverManager.getConnection(
+          s"jdbc:mysql://$MYSQL_HOST:$MYSQL_PORT/$MYSQL_DB",
+          MYSQL_USER,
+          MYSQL_PASSWORD
+        ))
       } catch {
         case e: Throwable =>
-          e.printStackTrace
-          null
+          e.printStackTrace()
+          throw e
       }
     }
-    true
   }
 
+  override def open(partitionId: Long, version: Long) = true
+
   override def process(value: Row): Unit = {
-    val columns = value.schema.fieldNames.mkString(",")
-    val values =
-      0 until value.length map { i =>
-        val v = value.get(i)
-        v match {
-          case Int => v.toString
-          case Long => v.toString
-          case _ => s"'${v.toString}'"
-        }
-      } mkString(",")
+    var isExceptional = false
+
     var statement: Statement = null
     try {
-      statement = this.connection.createStatement()
+      if (this.connection == null || this.connection.isEmpty || this.connection.get.isClosed)
+        this.getConnection()
+      statement = this.connection.get.createStatement()
+      val columns = value.schema.fieldNames.mkString(",")
+      val values =
+        0 until value.length map { i =>
+          val v = value.get(i)
+          try {
+            this.calendar.setTime(
+              dateFormatter.parse(v.toString)
+            )
+            this.calendar.getTime.getTime / 1000
+          } catch {
+            case _: Throwable =>
+              v
+          }
+        } mkString(",")
       val query =
         s"""
           |REPLACE INTO $MYSQL_TABLE ($columns) values ($values)
@@ -56,14 +73,14 @@ private[order] final class MySQLWriter @Inject()
     } catch {
       case e: Throwable =>
         e.printStackTrace
+        isExceptional = true
     } finally {
       statement.close()
+      if (isExceptional)
+        this.connection.get.close()
     }
-
   }
 
-  override def close(errorOrNull: Throwable): Unit = {
-    this.connection.close()
-  }
+  override def close(errorOrNull: Throwable): Unit = {}
 }
 

@@ -12,6 +12,12 @@ private[order] final class TestModule(devEmails: String) extends AbstractModule 
     bind(classOf[String])
       .annotatedWith(Names.named("MYSQL HOST"))
       .toInstance("localhost")
+    bind(classOf[String])
+      .annotatedWith(Names.named("MYSQL USER"))
+      .toInstance("root")
+    bind(classOf[String])
+      .annotatedWith(Names.named("MYSQL PASSWORD"))
+      .toInstance("mY834g@p")
 
     bind(classOf[String])
       .annotatedWith(Names.named("KAFKA BROKERS"))
@@ -27,9 +33,10 @@ private[order] final class TestModule(devEmails: String) extends AbstractModule 
   def createSparkSession(): SparkSession = {
     val spark = SparkSession
       .builder
-      .master("local[2]")
+      .master("local")
       .appName("test")
       .getOrCreate()
+    spark.sparkContext.setLogLevel("WARN")
     spark
   }
 

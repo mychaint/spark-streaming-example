@@ -12,12 +12,7 @@ private[order] final class DefaultModule(devEmails: String) extends AbstractModu
     bind(classOf[String])
       .annotatedWith(Names.named("MYSQL DB"))
       .toInstance("mychaint")
-    bind(classOf[String])
-      .annotatedWith(Names.named("MYSQL USER"))
-      .toInstance("")
-    bind(classOf[String])
-      .annotatedWith(Names.named("MYSQL PASSWORD"))
-      .toInstance("")
+
     bind(classOf[String])
       .annotatedWith(Names.named("MYSQL TABLE"))
       .toInstance("agg_order_minute_tab")

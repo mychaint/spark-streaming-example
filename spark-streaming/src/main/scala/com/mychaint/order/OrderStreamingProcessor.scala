@@ -21,5 +21,6 @@ private[order] final class OrderStreamingProcessor @Inject()
     this.getDataSource()
       .proceedTransformation
       .proceedSink
+      .awaitTermination
   }
 }

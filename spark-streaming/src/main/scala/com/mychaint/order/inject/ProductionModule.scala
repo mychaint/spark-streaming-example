@@ -12,6 +12,12 @@ private[order] final class ProductionModule(devEmails: String) extends AbstractM
     bind(classOf[String])
       .annotatedWith(Names.named("MYSQL HOST"))
       .toInstance("slave01")
+    bind(classOf[String])
+      .annotatedWith(Names.named("MYSQL USER"))
+      .toInstance("streaming")
+    bind(classOf[String])
+      .annotatedWith(Names.named("MYSQL PASSWORD"))
+      .toInstance("mY834g@p")
 
     bind(classOf[String])
       .annotatedWith(Names.named("KAFKA BROKERS"))
@@ -25,11 +31,13 @@ private[order] final class ProductionModule(devEmails: String) extends AbstractM
 
   @Provides
   def createSparkSession(): SparkSession = {
-    SparkSession
+    val spark = SparkSession
       .builder
       .master("yarn")
       .appName("Order streaming process pipeline")
       .getOrCreate()
+    spark.sparkContext.setLogLevel("WARN")
+    spark
   }
 
   @Provides

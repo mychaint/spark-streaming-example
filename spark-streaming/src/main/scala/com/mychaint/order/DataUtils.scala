@@ -29,17 +29,16 @@ private[order] final class DataUtils @Inject()
       .add(new StructField("region", StringType))
 
   def getTestDataSource: DataFrame = {
-//    this.getProductionDataSource
-    spark
-      .readStream
-      .format("socket")
-      .option("host", "localhost")
-      .option("port", 9999)
-      .load()
-      .selectExpr("CAST(value AS STRING)")
-      .select(from_json($"value", schema).alias("value"))
-      .select("value.*")
-
+    this.getProductionDataSource
+//    spark
+//      .readStream
+//      .format("socket")
+//      .option("host", "localhost")
+//      .option("port", 9999)
+//      .load()
+//      .selectExpr("CAST(value AS STRING)")
+//      .select(from_json($"value", schema).alias("value"))
+//      .select("value.*")
   }
 
   def getProductionDataSource: DataFrame = {
@@ -59,10 +58,9 @@ private[order] final class DataUtils @Inject()
 
   def getProductionTransformation(df: DataFrame): DataFrame = {
     df.select("orderid", "itemid", "shopid", "region", "price", "count", "timestamp")
-      .withWatermark("timestamp", "5 seconds")
       .withColumn("processing_time", current_timestamp)
       .groupBy(
-        window($"timestamp", "1 minutes", "1 minutes"),
+        window($"timestamp", "1 minutes"),
         $"region", $"shopid", $"itemid", $"timestamp"
       )
       .agg(
@@ -74,17 +72,18 @@ private[order] final class DataUtils @Inject()
       )
   }
 
-  def getTestDataSink(df: DataFrame): StreamingQuery =
-    df.writeStream
-      .format("console")
-      .outputMode("append")
-      .start()
-
+  def getTestDataSink(df: DataFrame): StreamingQuery = {
+    this.getProductionDataSink(df)
+//    df.writeStream
+//      .outputMode("update")
+//      .format("console")
+//      .start()
+  }
 
   def getProductionDataSink(df: DataFrame): StreamingQuery = {
     df.writeStream
+      .outputMode("update")
       .foreach(mySQLWriter)
-      .outputMode("append")
       .start()
   }
 }
