@@ -17,7 +17,7 @@ private[order] final class ProductionModule(devEmails: String) extends AbstractM
       .toInstance("streaming")
     bind(classOf[String])
       .annotatedWith(Names.named("MYSQL PASSWORD"))
-      .toInstance("mY834g@p")
+      .toInstance("112")
 
     bind(classOf[String])
       .annotatedWith(Names.named("KAFKA BROKERS"))
